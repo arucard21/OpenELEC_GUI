@@ -34,7 +34,8 @@ import javax.swing.JProgressBar;
  * It should be run as root using gksudo or kdesudo in order to correctly list the disks and install 
  * OpenELEC on the SD card. 
  * 
- * Might be possible to use this to run install scripts on different operating systems. 
+ * Might be possible to use this to run install scripts on different operating systems. You would only
+ * have to change the parameters in the configuration file (./etc/OpenELEC_GUI.properties)
  * 
  * 
  * @author Riaas Mokiem
