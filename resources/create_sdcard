@@ -1,0 +1,10 @@
+#!/bin/sh
+echo -n "Script executed "
+echo "entirely"
+sleep 1
+echo "With parameter: $1"
+sleep 1
+echo "extra text"
+echo "extra text"
+echo "extra text"
+echo "done"
