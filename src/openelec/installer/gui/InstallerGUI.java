@@ -38,7 +38,7 @@ import javax.swing.JProgressBar;
  * have to change the parameters in the configuration file (./etc/OpenELEC_GUI.properties)
  * 
  * 
- * @author Riaas Mokiem
+ * @author Arucard21
  *
  */
 public class InstallerGUI extends JFrame {
