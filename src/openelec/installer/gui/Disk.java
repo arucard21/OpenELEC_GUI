@@ -3,20 +3,12 @@ package openelec.installer.gui;
 public class Disk {
 	private String path;
 	private String size;
-	private String transportType;
-	private String logicalSectorSize;
-	private String physicalSectorSize;
-	private String partitionTableType;
-	private String modelName; //this should always be provided
+	private String modelName;
 	
-	public Disk(String[] diskAttributes){
-		path = diskAttributes[0];
-		size = diskAttributes[1];
-		transportType = diskAttributes[2];
-		logicalSectorSize = diskAttributes[3];
-		physicalSectorSize = diskAttributes[4];
-		partitionTableType = diskAttributes[5];
-		modelName = diskAttributes[6];
+	public Disk(String path, String size, String modelName){
+		this.path = path;
+		this.size = size;
+		this.modelName = modelName;
 	}
 
 	public String getPath() {
@@ -25,22 +17,6 @@ public class Disk {
 
 	public String getSize() {
 		return size;
-	}
-
-	public String getTransportType() {
-		return transportType;
-	}
-
-	public String getLogicalSectorSize() {
-		return logicalSectorSize;
-	}
-
-	public String getPhysicalSectorSize() {
-		return physicalSectorSize;
-	}
-
-	public String getPartitionTableType() {
-		return partitionTableType;
 	}
 
 	public String getModelName() {

@@ -2,9 +2,12 @@ package openelec.installer.gui;
 
 import java.awt.EventQueue;
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 import javax.swing.JFrame;
 import javax.swing.JPanel;
@@ -15,6 +18,9 @@ import javax.swing.JButton;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Properties;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import com.jgoodies.forms.layout.FormLayout;
 import com.jgoodies.forms.layout.ColumnSpec;
@@ -28,6 +34,10 @@ import java.awt.event.ActionEvent;
 
 import javax.swing.JScrollPane;
 import javax.swing.JProgressBar;
+import javax.swing.JLabel;
+import javax.swing.SwingConstants;
+
+import java.awt.Font;
 
 /**
  * GUI for installing OpenELEC to an SD card, using the linux install script, create_sdcard. 
@@ -42,12 +52,6 @@ import javax.swing.JProgressBar;
  *
  */
 public class InstallerGUI extends JFrame {
-
-
-	/**
-	 * 
-	 */
-	private static final long serialVersionUID = 5548063809414629404L;
 	/**
 	 * Parted machine-readable format:
 	 * 
@@ -65,11 +69,12 @@ public class InstallerGUI extends JFrame {
 	 * "number":"begin":"end":"size":"filesystem-type":"partition-name":"flags-set";
 	 * 
 	 **/
-	private String diskManagementCmd = "parted";
-	private String diskManagementParam = "-lm";
-	private String installCmd = "./create_sdcard";
-	private String installWorkingDir = "./";
-	private String installParam = "";
+
+	private static final long serialVersionUID = 5548063809414629404L;
+	//config variables
+	private static Path configLocation = Paths.get("./etc/OpenELEC_GUI.properties");
+	private Properties config;
+	//GUI elements
 	private JPanel contentPane;
 	private JButton installButton;
 	private JComboBox<Disk> comboBox;
@@ -78,17 +83,27 @@ public class InstallerGUI extends JFrame {
 	 * Contains the disks that were last considered to be available
 	 * 
 	 * Every Disk entry in the List is a contrainer class for a disk device, with fields:
-	 * "path", "size", "transport-type", "logical-sector-size", "physical-sector-size", "partition-table-type", "model-name"
+	 * "path", "size" and "model-name"
 	 *  
 	 */
 	private List<Disk> disks;
 	private JScrollPane scrollPane;
 	private JProgressBar progressBar;
+	private JLabel label;
 
 	/**
-	 * Launch the application.
+	 * Launch the application. Allows a custom configuration file as parameter
 	 */
 	public static void main(String[] args) {
+		if(args.length > 0 && !args[0].isEmpty()){
+			//override config location with the supplied custom location
+			try{
+				configLocation = Paths.get(args[0]);
+			}
+			catch(InvalidPathException invalPath){
+				System.err.println("The provided argument does not refer to a file");
+			}
+		}
 		EventQueue.invokeLater(new Runnable() {
 			public void run() {
 				try {
@@ -105,9 +120,32 @@ public class InstallerGUI extends JFrame {
 	 * Create the frame.
 	 */
 	public InstallerGUI() {
-		setTitle("OpenELEC SD Card Installation");
+		//retrieve the configuration properties
+		config = new Properties();
+		try {
+			config.load(Files.newInputStream(configLocation));
+		} catch (IOException e) {
+			System.err.println("Could not load configuration file, using default settings");
+			// run with default values
+			config.setProperty("gui.window.title","OpenELEC SD Card Installation");
+			config.setProperty("gui.window.description","Install OpenELEC to an SD card for Raspberry Pi");
+			config.setProperty("gui.disklist.InformationalEntry","<Select Installation Disk (Removes All Data from Disk!)>");
+			config.setProperty("gui.disklist.tooltip","Select the disk to which you want to install OpenELEC. Note that all data on this disk will be removed");
+			config.setProperty("gui.installbutton.title","Install OpenELEC");
+			config.setProperty("gui.progressbar.max",Integer.toString(100));
+			config.setProperty("gui.progressbar.increment",Integer.toString(1));
+			config.setProperty("gui.progressbar.tooltip","Progress of installation process");
+			config.setProperty("diskInfo.command.name","parted");
+			config.setProperty("diskInfo.command.parameters","-lm");
+			config.setProperty("diskInfo.output.precedingRegex","BYT");
+			config.setProperty("diskInfo.output.matchingRegex","(?<path>.*):(?<size>.*):.*:.*:.*:.*:(?<modelName>.*);");
+			config.setProperty("install.command","./create_sdcard");
+			config.setProperty("install.workingDir","./");
+			config.setProperty("install.additionalParams","");
+		}
+		setTitle(config.getProperty("gui.window.title"));
 		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-		setBounds(100, 100, 450, 300);
+		setBounds(100, 100, 480, 480);
 		contentPane = new JPanel();
 		contentPane.setBorder(new EmptyBorder(5, 5, 5, 5));
 		setContentPane(contentPane);
@@ -122,13 +160,15 @@ public class InstallerGUI extends JFrame {
 				FormFactory.RELATED_GAP_ROWSPEC,
 				FormFactory.DEFAULT_ROWSPEC,
 				FormFactory.RELATED_GAP_ROWSPEC,
+				FormFactory.DEFAULT_ROWSPEC,
+				FormFactory.RELATED_GAP_ROWSPEC,
 				RowSpec.decode("default:grow"),}));
 		comboBox = new JComboBox<Disk>();
-		comboBox.setToolTipText("Select the disk to which you want to install OpenELEC. Note that all data on this disk will be removed");
+		comboBox.setFont(new Font("Liberation Sans", Font.PLAIN, 14));
+		comboBox.setToolTipText(config.getProperty("gui.disklist.tooltip"));
 				
 		//set empty disk as default entry
-		String[] emptyDiskAttr = {"", "", "", "", "", "", "<Select Installation Disk (Removes All Data from Disk!)>"};
-		Disk emptyDisk = new Disk(emptyDiskAttr);
+		Disk emptyDisk = new Disk("/dev/null", "0B", config.getProperty("gui.disklist.InformationalEntry"));
 		comboBox.addItem(emptyDisk);
 		//update disks
 		updateDisks();
@@ -136,9 +176,15 @@ public class InstallerGUI extends JFrame {
 		for(Disk disk : disks){
 			comboBox.addItem(disk);
 		}
-		contentPane.add(comboBox, "2, 2, fill, fill");
 		
-		installButton = new JButton("Install OpenELEC");
+		label = new JLabel(config.getProperty("gui.window.description"));
+		label.setFont(new Font("Liberation Sans", Font.PLAIN, 12));
+		label.setHorizontalAlignment(SwingConstants.CENTER);
+		contentPane.add(label, "2, 2");
+		contentPane.add(comboBox, "2, 4, fill, fill");
+		
+		installButton = new JButton(config.getProperty("gui.installbutton.title"));
+		installButton.setFont(new Font("Liberation Sans", Font.PLAIN, 14));
 		installButton.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent arg0) {
 				SwingWorker<Void, Void> install = new SwingWorker<Void, Void>(){
@@ -155,17 +201,20 @@ public class InstallerGUI extends JFrame {
 		});
 		
 		installButton.setEnabled(false);
-		contentPane.add(installButton, "2, 4, fill, fill");
+		contentPane.add(installButton, "2, 6, fill, fill");
 		
-		progressBar = new JProgressBar();
+		progressBar = new JProgressBar(0, Integer.parseInt(config.getProperty("gui.progressbar.max")));
+		progressBar.setFont(new Font("Liberation Sans", Font.PLAIN, 14));
 		progressBar.setStringPainted(true);
-		progressBar.setToolTipText("Progress of installation process");
-		contentPane.add(progressBar, "2, 6");
+		progressBar.setToolTipText(config.getProperty("gui.progressbar.tooltip"));
+		contentPane.add(progressBar, "2, 8");
 		
 		scrollPane = new JScrollPane();
-		contentPane.add(scrollPane, "2, 8, fill, fill");
+		scrollPane.setFont(new Font("Liberation Mono", Font.PLAIN, 12));
+		contentPane.add(scrollPane, "2, 10, fill, fill");
 		
 		textArea = new JTextArea();
+		textArea.setFont(new Font("Liberation Mono", Font.PLAIN, 12));
 		scrollPane.setViewportView(textArea);
 		textArea.setEditable(false);
 		
@@ -186,19 +235,18 @@ public class InstallerGUI extends JFrame {
 	public void startInstallation() {
 		final Disk selectedDisk = (Disk) comboBox.getSelectedItem();
 		if(!selectedDisk.getPath().isEmpty()){
-			installParam = selectedDisk.getPath();
 			try {
-				ProcessBuilder installPB = new ProcessBuilder(installCmd, installParam);
-				
-				installPB.directory(new File(installWorkingDir));
+				ProcessBuilder installPB = new ProcessBuilder(config.getProperty("install.command"), 
+						config.getProperty("install.additionalParams")+" "+selectedDisk.getPath());				
+				installPB.directory(Paths.get(config.getProperty("install.workingDir")).toFile());
 				Process installProc = installPB.start();							
 				BufferedReader installReader = new BufferedReader(new InputStreamReader(installProc.getInputStream()));
 				String line = null;
 				while ((line = installReader.readLine()) != null ){
 					textArea.append(line+"\n");
-					progressBar.setValue(progressBar.getValue()+1);
+					progressBar.setValue(progressBar.getValue()+Integer.parseInt(config.getProperty("gui.progressbar.increment")));
 				}
-				progressBar.setValue(100);
+				progressBar.setValue(Integer.parseInt(config.getProperty("gui.progressbar.max")));
 			}
 			catch (IOException e1) {
 				e1.printStackTrace();
@@ -211,7 +259,8 @@ public class InstallerGUI extends JFrame {
 	 */
 	private void updateDisks(){
 		List<Disk> newDisks = new ArrayList<Disk>();
-		ProcessBuilder partedPB = new ProcessBuilder(diskManagementCmd, diskManagementParam);
+		ProcessBuilder partedPB = new ProcessBuilder(config.getProperty("diskInfo.command.name"), 
+				config.getProperty("diskInfo.command.parameters"));
 		
 		Process partedProc;
 		try {
@@ -219,10 +268,30 @@ public class InstallerGUI extends JFrame {
 			partedProc.waitFor();
 			BufferedReader partedReader = new BufferedReader(new InputStreamReader(partedProc.getInputStream()));
 			while (partedReader.ready()){
-				if(partedReader.readLine().equals("BYT;")){					
-					String[] diskAttr = partedReader.readLine().split(":|;");
-					Disk d = new Disk(diskAttr);
-					newDisks.add(d);
+				//find out if a preceding line regex has been provided
+				String precedingLine = config.getProperty("diskInfo.output.precedingRegex");
+				if(precedingLine != null && !precedingLine.isEmpty()){
+					//check every line for the preceding line regex and only check the following line for the matching regex
+					if(partedReader.readLine().contains(precedingLine)){					
+						Pattern matchLine = Pattern.compile(config.getProperty("diskInfo.output.matchingRegex"));
+						Matcher readLine = matchLine.matcher(partedReader.readLine());
+						if (readLine.matches()){
+							Disk discoveredDisk = new Disk(readLine.group("path"),readLine.group("size"),readLine.group("modelName"));
+							newDisks.add(discoveredDisk);
+						}
+						else{
+							System.err.println("Preceding line matched, but next line did not. Check your regex.");
+						}
+					}
+				}
+				else{
+					//check every line for the matching regex
+					Pattern matchLine = Pattern.compile(config.getProperty("diskInfo.output.matchingRegex"));
+					Matcher readLine = matchLine.matcher(partedReader.readLine());
+					if (readLine.matches()){
+						Disk discoveredDisk = new Disk(readLine.group("path"),readLine.group("size"),readLine.group("modelName"));
+						newDisks.add(discoveredDisk);
+					}
 				}
 			}
 		} catch (IOException e) {
