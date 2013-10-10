@@ -18,6 +18,5 @@ The GUI works in 2 steps:
 the information is shown in the drop-down menu of the GUI.
 2. After selecting one of the disks in the GUI, you can click the button. This will execute a second (native, os-specific) 
 command with the selected disk as parameter.
-The commands are configurable so different configuration files can be used for different OS's or distributions. The
-default Linux configuration will use parted to retrieve the connected disks and the OpenELEC create_sdcard script to 
-install OpenELEC.
+
+The commands are configurable so different configuration files can be used for different OS's, distributions or installation platforms. The default Linux configuration will use parted to retrieve the connected disks and the OpenELEC create_sdcard script to install OpenELEC.
