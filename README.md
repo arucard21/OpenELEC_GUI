@@ -13,6 +13,7 @@ Usage
 Configuration
 ============
 The GUI works in 2 steps:
+
 1. It executes a (native, os-specific) command to retrieve the list of connected disks. This is parsed and 
 the information is shown in the drop-down menu of the GUI.
 2. After selecting one of the disks in the GUI, you can click the button. This will execute a second (native, os-specific) 
