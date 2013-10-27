@@ -20,3 +20,7 @@ the information is shown in the drop-down menu of the GUI.
 command with the selected disk as parameter.
 
 The commands are configurable so different configuration files can be used for different OS's, distributions or installation platforms. The default Linux configuration will use parted to retrieve the connected disks and the OpenELEC create_sdcard script to install OpenELEC.
+
+To-Do
+============
+- Actual installation fails, maybe due to java's Process object using a different environment to run the install script. Need to look into this
