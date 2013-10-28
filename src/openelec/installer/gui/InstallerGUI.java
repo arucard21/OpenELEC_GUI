@@ -18,6 +18,7 @@ import javax.swing.JButton;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -32,6 +33,7 @@ import javax.swing.JTextArea;
 import java.awt.event.ActionListener;
 import java.awt.event.ActionEvent;
 
+import javax.swing.JOptionPane;
 import javax.swing.JScrollPane;
 import javax.swing.JProgressBar;
 import javax.swing.JLabel;
@@ -135,6 +137,9 @@ public class InstallerGUI extends JFrame {
 			config.setProperty("gui.progressbar.max",Integer.toString(100));
 			config.setProperty("gui.progressbar.increment",Integer.toString(1));
 			config.setProperty("gui.progressbar.tooltip","Progress of installation process");
+			config.setProperty("gui.confirmInstall.title","Are you sure you want to continue?");
+			config.setProperty("gui.confirmInstall.message","This installation will remove all data from the selected disk.\nAre you sure you wish to continue your installation to:");
+			config.setProperty("gui.confirmInstall.cancelled","The installation was cancelled by the user");
 			config.setProperty("diskInfo.command.name","parted");
 			config.setProperty("diskInfo.command.parameters","-lm");
 			config.setProperty("diskInfo.output.precedingRegex","BYT");
@@ -164,6 +169,7 @@ public class InstallerGUI extends JFrame {
 				FormFactory.RELATED_GAP_ROWSPEC,
 				RowSpec.decode("default:grow"),}));
 		comboBox = new JComboBox<Disk>();
+		comboBox.setEditable(true);
 		comboBox.setFont(new Font("Liberation Sans", Font.PLAIN, 14));
 		comboBox.setToolTipText(config.getProperty("gui.disklist.tooltip"));
 				
@@ -199,8 +205,6 @@ public class InstallerGUI extends JFrame {
 				
 			}
 		});
-		
-		installButton.setEnabled(false);
 		contentPane.add(installButton, "2, 6, fill, fill");
 		
 		progressBar = new JProgressBar(0, Integer.parseInt(config.getProperty("gui.progressbar.max")));
@@ -217,40 +221,52 @@ public class InstallerGUI extends JFrame {
 		textArea.setFont(new Font("Liberation Mono", Font.PLAIN, 12));
 		scrollPane.setViewportView(textArea);
 		textArea.setEditable(false);
-		
-		comboBox.addActionListener(new ActionListener() {
-			public void actionPerformed(ActionEvent arg0) {
-				//enable the install button if the combobox has a disk selected
-				if(comboBox.getSelectedIndex()!=0){
-					installButton.setEnabled(true);
-					progressBar.setValue(10);
-				}
-				else{
-					installButton.setEnabled(false);
-				}
-			}
-		});
 	}
 
 	public void startInstallation() {
-		final Disk selectedDisk = (Disk) comboBox.getSelectedItem();
-		if(!selectedDisk.getPath().isEmpty()){
-			try {
-				ProcessBuilder installPB = new ProcessBuilder(config.getProperty("install.command"), 
-						config.getProperty("install.additionalParams")+" "+selectedDisk.getPath());				
-				installPB.directory(Paths.get(config.getProperty("install.workingDir")).toFile());
-				Process installProc = installPB.start();							
-				BufferedReader installReader = new BufferedReader(new InputStreamReader(installProc.getInputStream()));
-				String line = null;
-				while ((line = installReader.readLine()) != null ){
-					textArea.append(line+"\n");
-					progressBar.setValue(progressBar.getValue()+Integer.parseInt(config.getProperty("gui.progressbar.increment")));
+		progressBar.setValue(0);
+		Disk selectedDisk;
+		if(comboBox.getSelectedIndex() > 0){
+			selectedDisk = (Disk) comboBox.getSelectedItem();
+		}
+		else{
+			selectedDisk = new Disk(comboBox.getSelectedItem().toString(), "", "");
+		}
+		//pop up an "are you sure" dialog
+		int confirm = JOptionPane.showConfirmDialog(contentPane, config.getProperty("gui.confirmInstall.message")+"\n"+selectedDisk.getPath(), config.getProperty("gui.confirmInstall.title"), JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+		if(confirm == JOptionPane.YES_OPTION){
+			if(!selectedDisk.getPath().isEmpty()){
+				try {
+					String params;
+					if(config.getProperty("install.additionalParams").isEmpty()){
+						params = selectedDisk.getPath();
+					}
+					else{
+						params = config.getProperty("install.additionalParams") + " " + selectedDisk.getPath();
+					}
+					ProcessBuilder installPB = new ProcessBuilder(config.getProperty("install.command"), params);				
+					installPB.directory(Paths.get(config.getProperty("install.workingDir")).toFile());
+					installPB.redirectErrorStream(true);
+					Map<String, String> defaultEnv = installPB.environment();
+					defaultEnv.clear();
+					defaultEnv.putAll(System.getenv());
+					Process installProc = installPB.start();							
+					BufferedReader installReader = new BufferedReader(new InputStreamReader(installProc.getInputStream()));
+					String line = null;
+					while ((line = installReader.readLine()) != null ){
+						textArea.append(line+"\n");
+						progressBar.setValue(progressBar.getValue()+Integer.parseInt(config.getProperty("gui.progressbar.increment")));
+					}
+					progressBar.setValue(Integer.parseInt(config.getProperty("gui.progressbar.max")));
 				}
-				progressBar.setValue(Integer.parseInt(config.getProperty("gui.progressbar.max")));
+				catch (IOException e1) {
+					e1.printStackTrace();
+				}
 			}
-			catch (IOException e1) {
-				e1.printStackTrace();
-			}
+		}
+		else{
+			String line = config.getProperty("gui.confirmInstall.cancelled");
+			textArea.append(line+"\n");
 		}
 	}
 	
